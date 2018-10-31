@@ -18,11 +18,20 @@ class ZergAgent(base_agent.BaseAgent):
         """
         super(ZergAgent, self).step(obs)
 
+        larvae = self.get_units_by_type(obs,units.Zerg.Larva)
         spawning_pools = self.get_units_by_type(obs, units.Zerg.SpawningPool)
 
+        if self.unit_type_is_selected(obs,units.Zerg.Larva):
+            if self.can_do(obs, actions.FUNCTIONS.Train_Zergling_quick.id):
+                return actions.FUNCTIONS.Train_Zergling_quick("now")
+        if len(larvae) > 0:
+            # checks for larvae, and selects all 
+            larva = random.choice(larvae)
+            
+            return actions.FUNCTIONS.select_point("select_all_type", (larva.x, larva.y))
         # checks if the unit we are looking at is a drone
         if self.unit_type_is_selected(obs, units.Zerg.Drone) and len(spawning_pools) == 0:
-            if ( self.can_do(obs,actions.FUNCTIONS.Build_SpawningPool_screen.id) and len(spawning_pools) == 0):
+            if ( self.can_do(obs,actions.FUNCTIONS.Build_SpawningPool_screen.id)):
                 x = random.randint(0,83)
                 y = random.randint(0,83)
 
