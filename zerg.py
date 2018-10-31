@@ -19,8 +19,10 @@ class ZergAgent(base_agent.BaseAgent):
         super(ZergAgent, self).step(obs)
 
         spawning_pools = self.get_units_by_type(obs, units.Zerg.SpawningPool)
+
+        # checks if the unit we are looking at is a drone
         if self.unit_type_is_selected(obs, units.Zerg.Drone) and len(spawning_pools) == 0:
-            if (actions.FUNCTIONS.Build_SpawningPool_screen.id in obs.observation.available_actions):
+            if ( self.can_do(obs,actions.FUNCTIONS.Build_SpawningPool_screen.id) and len(spawning_pools) == 0):
                 x = random.randint(0,83)
                 y = random.randint(0,83)
 
@@ -46,3 +48,7 @@ class ZergAgent(base_agent.BaseAgent):
         if (len(obs.observation.multi_select) > 0 and obs.observation.multi_select[0].unit_type == unit_type):
             return True
         return False
+
+    def can_do(self, obs, action):
+        """ This method is used to simplify checking if an action is available """
+        return action in obs.observation.available_actions
