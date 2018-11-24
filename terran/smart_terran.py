@@ -1,3 +1,10 @@
+"""
+    This is an implementation by a tutorial from Steven Brown:
+    https://chatbotslife.com/building-a-basic-pysc2-agent-b109cde1477c
+
+    It is has been updated to the latest version of pysc2 (version 2.0)
+"""
+
 import random
 import math
 
