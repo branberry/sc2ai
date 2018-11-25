@@ -22,6 +22,6 @@ class MineralAgent(base_agent.BaseAgent):
             
         if obs.first():
             return actions.FUNCTIONS.select_army("select")
-
+        #print(features.ScreenFeatures())
         return actions.FUNCTIONS.Attack_minimap("now",
-                                                (random.randint(0,84),random.randint(0,84)))
+                                                (random.randint(0,50),random.randint(0,50)))
