@@ -2,8 +2,9 @@ from pysc2.agents import base_agent
 from pysc2.env import sc2_env
 from pysc2.lib import actions, features,units
 
+import torch
 import random
-
+import numpy
 
 # Defining constants
 PLAYER_SELF = features.PlayerRelative.SELF
@@ -34,17 +35,21 @@ class MineralAgent(base_agent.BaseAgent):
         return list(zip(x,y))
 
     def step(self, obs):
-        
-        marines = self.get_units_by_type(obs, units.Terran.Marine)
-        print(obs.observation.feature_screen.player_relative)
         if obs.first():
             return actions.FUNCTIONS.select_army("select")
 
         # checking if the desired function can be taken before we try using it! 
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             player_relative = obs.observation.feature_screen.player_relative
-            minerals = self.coordinates(player_relative == PLAYER_SELF)
+            marines = self.coordinates(player_relative == PLAYER_SELF)
+            minerals = self.coordinates(player_relative == PLAYER_NEUTRAL)
+            # if there are no minerals on the map
+            if not minerals:
+                return actions.FUNCTIONS.no_op()
+            marine_coordinates = numpy.mean(marines, axis=0).round()  # Average location.
 
-            print(player_relative == PLAYER_SELF)
+            closest_mineral = minerals[numpy.argmin(numpy.linalg.norm(numpy.array(minerals) - marine_coordinates, axis=1))]
+            return actions.FUNCTIONS.Move_screen("now",closest_mineral)
+        else:
             return actions.FUNCTIONS.no_op()
 

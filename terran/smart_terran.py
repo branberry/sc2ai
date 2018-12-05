@@ -45,6 +45,7 @@ ACTION_SELECT_BARRACKS = 'selectbarracks'
 ACTION_BUILD_MARINE = 'buildmarine'
 ACTION_SELECT_ARMY = 'selectarmy'
 ACTION_ATTACK = 'attack'
+ACTION_BUILD_REAPER = 'buildreaper'
 
 smart_actions = [
     ACTION_DO_NOTHING,
@@ -55,6 +56,7 @@ smart_actions = [
     ACTION_BUILD_MARINE,
     ACTION_SELECT_ARMY,
     ACTION_ATTACK,
+    ACTION_BUILD_REAPER,
 ]
 
 KILL_UNIT_REWARD = 0.2
