@@ -14,10 +14,21 @@ import torchvision.transforms as T
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class DQNMineralAgent(base_agent.BaseAgent):
+smart_actions = [
+    ACTION_DO_NOTHING,
+    ACTION_SELECT_ARMY,
+    ACTION_ATTACK,
+
+]
+class VPG(nn.Module):
+    def __init__(self):
+        super(VPG, self).__init__()
+        
+
+class SmartMineralAgent(base_agent.BaseAgent):
     
     def __init__(self):
-        super(DQNMineralAgent, self).__init__()
+        super(SmartMineralAgent, self).__init__()
 
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
@@ -30,6 +41,11 @@ class DQNMineralAgent(base_agent.BaseAgent):
         """
             method is called every frame
         """
+        if obs.first():
+            print("The observation space")
+            print(obs.observation)
+            print("available actions")
+
         marines = self.get_units_by_type(obs, units.Terran.Marine)
         
         if obs.first():

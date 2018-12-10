@@ -5,9 +5,9 @@ from absl import app
 from zerg.zerg import ZergAgent
 
 from minigames.collect_minerals import MineralAgent
-
+from minigames.VPG_collect_minerals import SmartMineralAgent
 def main(unused_argv):
-  agent = MineralAgent()
+  agent = SmartMineralAgent()
   try:
     while True:
       with sc2_env.SC2Env(

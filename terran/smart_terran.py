@@ -47,6 +47,7 @@ ACTION_SELECT_ARMY = 'selectarmy'
 ACTION_ATTACK = 'attack'
 ACTION_BUILD_REAPER = 'buildreaper'
 
+
 smart_actions = [
     ACTION_DO_NOTHING,
     ACTION_SELECT_SCV,
