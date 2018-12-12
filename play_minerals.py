@@ -8,6 +8,7 @@ from minigames.collect_minerals import MineralAgent
 from minigames.VPG_collect_minerals import SmartMineralAgent
 def main(unused_argv):
   agent = SmartMineralAgent()
+  #agent = MineralAgent()
   try:
     while True:
       with sc2_env.SC2Env(
