@@ -32,17 +32,13 @@ _PLAYER_ID = features.SCREEN_FEATURES.player_id.index
 
 _PLAYER_SELF = 1
 
-ACTION_DO_NOTHING = 'donothing'
-ACTION_SELECT_ARMY = 'selectarmy'
-ACTION_ATTACK = 'attack'
-
-
-smart_actions = [
-    ACTION_DO_NOTHING,
-    ACTION_SELECT_ARMY,
-    ACTION_ATTACK,
-
-]
+ACTION_DO_NOTHING = 0
+ACTION_MOVE_CAMERA = 1
+ACTION_SELECT_POINT = 2
+ACTION_SELECT_RECT = 3
+ACTION_SELECT_GROUP = 4
+ACTION_SELECT_ARMY = 7
+ACTION_ATTACK_SCREEN = 12
 
 GAMMA = 0.99
 
@@ -59,9 +55,9 @@ class VPG(nn.Module):
         self.log_probs = []
         self.rewards = []
 
-    def forward(self, x):
-        x = F.relu(self.linear_one(x))
-        action_scores = self.linear_two(x)
+    def forward(self, observation):
+        observation = F.relu(self.linear_one(observation))
+        action_scores = self.linear_two(observation)
         return F.softmax(action_scores,dim=1)
 
 
@@ -73,7 +69,10 @@ eps = np.finfo(np.float32).eps.item() # machine epsilon
 def select_action(state):
     state = torch.from_numpy(state).float().unsqueeze(0) # retreiving the current state of the game to determine a action
     probs = policy(state)
-    m = Categorical(probs)
+    # creates a categorical distribution
+    # a categorical distribution is a discrete probability distribution that describes 
+    # the possible results of a random variable.  In this case, our possible results are our available actions
+    m = Categorical(probs) 
     action = m.sample()
     policy.log_probs.append(m.log_prob(action))
     return action.item()
