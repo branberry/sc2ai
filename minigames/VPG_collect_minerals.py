@@ -31,6 +31,8 @@ _UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
 _PLAYER_ID = features.SCREEN_FEATURES.player_id.index
 
 _PLAYER_SELF = 1
+PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
+ACTION_ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
 
 ACTION_DO_NOTHING = 0
 ACTION_MOVE_CAMERA = 1
@@ -47,10 +49,11 @@ class VPG(nn.Module):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(572,1144)
-        self.linear_two = nn.Linear(1144, 6)
+        self.linear_two = nn.Linear(1144, 25)
 
         self.gamma = gamma
-        
+        self.state = []
+        self.actions = []
         # Episode policy and reward history
         self.log_probs = []
         self.rewards = []
@@ -104,6 +107,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.step_minerals = []
         self.reward = 0
 
+    def coordinates(self, mask):
+        """ 
+            This method returns the x,y coordinates of a selected unit.
+            Mask is a set of bools from comaprison with feature layer.
+        """
+        y,x = mask.nonzero()
+        return list(zip(x,y))
+
+
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
             if unit.unit_type == unit_type]
@@ -115,21 +127,35 @@ class SmartMineralAgent(base_agent.BaseAgent):
         """
             method is called every frame
         """
-        minerals = obs.observation['player'][1]
+        if obs.last():
+            #finish_episode()
+
+        player_relative = obs.observation.feature_screen.player_relative 
+
+        mineral_count = obs.observation['player'][1]
+        
         if obs.first():
-            self.step_minerals.append(minerals)
-            print(obs)
+            self.step_minerals.append(mineral_count)
+            mineral_coordinates = self.coordinates(player_relative == PLAYER_NEUTRAL)
+            policy.actions = mineral_coordinates
+            print(mineral_coordinates)
+
+            return actions.FUNCTIONS.select_army("select")
+ 
         else:
-            if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
-                reward = minerals - self.step_minerals[len(self.step_minerals) - 1] / 5
+            if mineral_count - self.step_minerals[len(self.step_minerals) - 1] > 0:
+                reward = (mineral_count - self.step_minerals[len(self.step_minerals) - 1]) / 5
             else:
                 reward = -1
             
             policy.rewards.append(reward)
-            self.step_minerals.append(minerals)
+            self.step_minerals.append(mineral_count)
 
         #state = obs.observation.feature_units 
 
         marines = self.get_units_by_type(obs, units.Terran.Marine)
         
+        if ACTION_ATTACK_MINIMAP in obs.observation['available_actions']:
+            pass 
+
         return actions.FUNCTIONS.no_op()
