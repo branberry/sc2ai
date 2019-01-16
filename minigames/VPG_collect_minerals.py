@@ -1,3 +1,9 @@
+"""
+    TODO: We will be using the feature_units of the observation as input into our neural network.
+    The output of our neural network will be the action to move to a crystal, and since there are 20 crystals, we will 
+    have 20 output neurons.  The output neurons will be ordered by minerals closest to the average distance between the marines.
+"""
+
 from pysc2.agents import base_agent
 from pysc2.env import sc2_env
 from pysc2.lib import actions, features,units
@@ -18,20 +24,9 @@ from torch.distributions import Categorical
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-_NO_OP = actions.FUNCTIONS.no_op.id
-_SELECT_POINT = actions.FUNCTIONS.select_point.id
-_BUILD_SUPPLY_DEPOT = actions.FUNCTIONS.Build_SupplyDepot_screen.id
-_BUILD_BARRACKS = actions.FUNCTIONS.Build_Barracks_screen.id
-_TRAIN_MARINE = actions.FUNCTIONS.Train_Marine_quick.id
-_SELECT_ARMY = actions.FUNCTIONS.select_army.id
-_ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
-
-_PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
-_UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
-_PLAYER_ID = features.SCREEN_FEATURES.player_id.index
-
-_PLAYER_SELF = 1
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
+PLAYER_SELF = features.PlayerRelative.SELF
+
 ACTION_ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
 
 ACTION_DO_NOTHING = 0
@@ -49,7 +44,7 @@ class VPG(nn.Module):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(572,1144)
-        self.linear_two = nn.Linear(1144, 25)
+        self.linear_two = nn.Linear(1144, 20)
 
         self.gamma = gamma
         self.state = []
@@ -61,7 +56,7 @@ class VPG(nn.Module):
     def forward(self, observation):
         observation = F.relu(self.linear_one(observation))
         action_scores = self.linear_two(observation)
-        return F.softmax(action_scores,dim=1)
+        return F.relu(action_scores,dim=1)
 
 
 policy = VPG()
@@ -99,7 +94,13 @@ def finish_episode():
     del policy.rewards[:]
     del policy.log_probs[:]
 
-
+def coordinates(mask):
+    """ 
+        This method returns the x,y coordinates of a selected unit.
+        Mask is a set of bools from comaprison with feature layer.
+    """
+    y,x = mask.nonzero()
+    return list(zip(x,y))
 class SmartMineralAgent(base_agent.BaseAgent):
     
     def __init__(self):
@@ -107,13 +108,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.step_minerals = []
         self.reward = 0
 
-    def coordinates(self, mask):
-        """ 
-            This method returns the x,y coordinates of a selected unit.
-            Mask is a set of bools from comaprison with feature layer.
-        """
-        y,x = mask.nonzero()
-        return list(zip(x,y))
+
 
 
     def get_units_by_type(self, obs, unit_type):
@@ -129,6 +124,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         """
         if obs.last():
             #finish_episode()
+            self.reward = 0
 
         player_relative = obs.observation.feature_screen.player_relative 
 
@@ -136,24 +132,34 @@ class SmartMineralAgent(base_agent.BaseAgent):
         
         if obs.first():
             self.step_minerals.append(mineral_count)
-            mineral_coordinates = self.coordinates(player_relative == PLAYER_NEUTRAL)
+            mineral_coordinates = coordinates(player_relative == PLAYER_NEUTRAL)
             policy.actions = mineral_coordinates
-            print(mineral_coordinates)
+            #print(len(mineral_coordinates))
+            #print(obs.observation['available_actions'])
+            #marines = coordinates(player_relative == PLAYER_SELF)
+            #print(marines)
 
-            return actions.FUNCTIONS.select_army("select")
- 
-        else:
-            if mineral_count - self.step_minerals[len(self.step_minerals) - 1] > 0:
-                reward = (mineral_count - self.step_minerals[len(self.step_minerals) - 1]) / 5
-            else:
-                reward = -1
+            feature_units = np.array(obs.observation.feature_units)
+            feature_minimap = np.array(obs.observation.feature_minimap)
+            feature_screen = np.array(obs.observation.feature_screen)
+
             
-            policy.rewards.append(reward)
-            self.step_minerals.append(mineral_count)
+            
+            print(obs.observation.feature_units) # this will be the value for the number of input neurons
+            
+            return actions.FUNCTIONS.select_army("select")
+
+        
+
+        self.reward += obs.reward
+
+        
+        policy.rewards.append(self.reward)
+        self.step_minerals.append(mineral_count)
 
         #state = obs.observation.feature_units 
 
-        marines = self.get_units_by_type(obs, units.Terran.Marine)
+        
         
         if ACTION_ATTACK_MINIMAP in obs.observation['available_actions']:
             pass 
