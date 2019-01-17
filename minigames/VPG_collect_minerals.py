@@ -47,7 +47,7 @@ class VPG(nn.Module):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(572,1144)
-        self.linear_two = nn.Linear(1144, 6)
+        self.linear_two = nn.Linear(1144, 20)
 
         self.gamma = gamma
         
@@ -115,10 +115,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         """
             method is called every frame
         """
+
+
         minerals = obs.observation['player'][1]
         if obs.first():
             self.step_minerals.append(minerals)
-            print(obs)
+            input_data = torch.tensor(obs.observation.feature_units)
+            input_data = torch.flatten(input_data)
+             
+            print(obs.observation)
         else:
             if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
                 reward = minerals - self.step_minerals[len(self.step_minerals) - 1] / 5
