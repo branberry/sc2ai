@@ -11,6 +11,7 @@ PLAYER_SELF = features.PlayerRelative.SELF
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_ENEMY = features.PlayerRelative.ENEMY
 
+_TERRAN_MARINE = 48
 
 class MineralAgent(base_agent.BaseAgent):
     """
@@ -36,6 +37,7 @@ class MineralAgent(base_agent.BaseAgent):
 
     def step(self, obs):
         if obs.first():
+
             return actions.FUNCTIONS.select_army("select")
 
         # checking if the desired function can be taken before we try using it! 
