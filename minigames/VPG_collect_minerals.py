@@ -27,7 +27,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_SELF = features.PlayerRelative.SELF
 
-ACTION_ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
+_PLAYER_SELF = 1
+_TERRAN_MARINE = 48
+_UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
+_SELECT_POINT = actions.FUNCTIONS.select_point.id
+_NOT_QUEUED = [0]
 
 ACTION_DO_NOTHING = 0
 ACTION_MOVE_CAMERA = 1
@@ -56,7 +60,7 @@ class VPG(nn.Module):
     def forward(self, observation):
         observation = F.relu(self.linear_one(observation))
         action_scores = self.linear_two(observation)
-        return F.relu(action_scores,dim=1)
+        return F.softmax(action_scores,dim=-1)
 
 
 policy = VPG()
@@ -65,7 +69,7 @@ optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimi
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state):
-    state = torch.from_numpy(state).float().unsqueeze(0) # retreiving the current state of the game to determine a action
+    #state = torch.from_numpy(state).float().unsqueeze(0) # retreiving the current state of the game to determine a action
     probs = policy(state)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
@@ -107,10 +111,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         super(SmartMineralAgent, self).__init__()
         self.step_minerals = []
         self.reward = 0
-
-
-
-
+        self.actions = []
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
             if unit.unit_type == unit_type]
@@ -118,46 +119,72 @@ class SmartMineralAgent(base_agent.BaseAgent):
     def can_do(self, obs, action):
         return action in obs.observation.available_actions
 
+    def get_actions(self,feature_units,marine_coord):
+        """
+            This function returns a 2d-array 
+            containing the coordinates of each mineral by order of
+            closest mineral to furthest
+        """
+        coordinates = []
+        for unit in feature_units:
+            if unit[0] == 1680:
+                dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
+                coords = [unit[12],unit[13]]
+                coordinates.append([dist,coords])
+        
+        coordinates.sort(key=lambda x : x[0])
+        res = []
+        for coord in coordinates:
+            res.append(coord[1])
+        return res
+
     def step(self, obs):
         """
             method is called every frame
         """
+
+
+        minerals = obs.observation['player'][1]
         if obs.last():
-            #finish_episode()
-            self.reward = 0
-
-        player_relative = obs.observation.feature_screen.player_relative 
-
-        mineral_count = obs.observation['player'][1]
-        
+            finish_episode()
         if obs.first():
-            self.step_minerals.append(mineral_count)
-            mineral_coordinates = coordinates(player_relative == PLAYER_NEUTRAL)
-            policy.actions = mineral_coordinates
-            #print(len(mineral_coordinates))
-            #print(obs.observation['available_actions'])
-            #marines = coordinates(player_relative == PLAYER_SELF)
-            #print(marines)
+            self.step_minerals.append(minerals)
 
-            feature_units = np.array(obs.observation.feature_units)
-            feature_minimap = np.array(obs.observation.feature_minimap)
-            feature_screen = np.array(obs.observation.feature_screen)
-
-            
-            
-            print(obs.observation.feature_units) # this will be the value for the number of input neurons
-            
-            return actions.FUNCTIONS.select_army("select")
-
+             #return actions.FUNCTIONS.
+            unit_type = obs.observation.feature_screen[_UNIT_TYPE]
+            marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
+            i = random.randint(0,len(marine_y) - 1)
+            x = marine_x[i]
+            y = marine_y[i]
+            return actions.FunctionCall(_SELECT_POINT,[_NOT_QUEUED,[x,y]])
         
-
-        self.reward += obs.reward
-
+        res = obs.observation.feature_units
+        if len(res) < 22:
+            #res.append()
+            for i in range(22 - len(res)):
+                np.append(res,torch.zeros(1,26),axis=0)
+        input_data = torch.tensor(res)
+        input_data = torch.flatten(input_data)
+        input_data = input_data.float()
+        #print(input_data)
+        #print(select_action(input_data))
+        action = select_action(input_data)
+        unit_type = obs.observation.feature_screen[_UNIT_TYPE]
+        marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
+        i = random.randint(0,len(marine_y) - 1)
+        x = marine_x[i]
+        y = marine_y[i]
+        self.actions = self.get_actions(obs.observation.feature_units,[x,y])
+        if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
+            reward = (minerals - self.step_minerals[len(self.step_minerals) - 1]) / 5
+        else:
+            reward = -1
         
-        policy.rewards.append(self.reward)
-        self.step_minerals.append(mineral_count)
-
-        #state = obs.observation.feature_units 
+        policy.rewards.append(reward)
+        self.step_minerals.append(minerals)
+        print(self.actions[action])
+        #print(len(obs.observation.feature_units[0]))
+        return actions.FunctionCall(_ATTACK_MINIMAP,[_NOT_QUEUED,self.actions[action]])
 
         
         
