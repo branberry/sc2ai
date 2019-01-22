@@ -27,6 +27,18 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_SELF = features.PlayerRelative.SELF
 
+_NO_OP = actions.FUNCTIONS.no_op.id
+_SELECT_POINT = actions.FUNCTIONS.select_point.id
+_BUILD_SUPPLY_DEPOT = actions.FUNCTIONS.Build_SupplyDepot_screen.id
+_BUILD_BARRACKS = actions.FUNCTIONS.Build_Barracks_screen.id
+_TRAIN_MARINE = actions.FUNCTIONS.Train_Marine_quick.id
+_SELECT_ARMY = actions.FUNCTIONS.select_army.id
+_ATTACK_MINIMAP = actions.FUNCTIONS.Attack_minimap.id
+_ATTACK_SCREEN = actions.FUNCTIONS.Attack_screen.id
+_PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
+_UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
+_PLAYER_ID = features.SCREEN_FEATURES.player_id.index
+
 _PLAYER_SELF = 1
 _TERRAN_MARINE = 48
 _UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
@@ -47,8 +59,8 @@ class VPG(nn.Module):
     def __init__(self,gamma=0.99):
         super(VPG, self).__init__()
 
-        self.linear_one = nn.Linear(572,1144)
-        self.linear_two = nn.Linear(1144, 20)
+        self.linear_one = nn.Linear(28672,57344)
+        self.linear_two = nn.Linear(57344, 20)
 
         self.gamma = gamma
         self.state = []
@@ -132,6 +144,11 @@ class SmartMineralAgent(base_agent.BaseAgent):
                 coords = [unit[12],unit[13]]
                 coordinates.append([dist,coords])
         
+        if len(coordinates) < 20:
+            while len(coordinates) < 20:
+                dist = np.linalg.norm(np.array([64,64]) - np.array(marine_coord))
+                coordinates.append([dist,[64,64]])
+        
         coordinates.sort(key=lambda x : x[0])
         res = []
         for coord in coordinates:
@@ -163,7 +180,8 @@ class SmartMineralAgent(base_agent.BaseAgent):
             #res.append()
             for i in range(22 - len(res)):
                 np.append(res,torch.zeros(1,26),axis=0)
-        input_data = torch.tensor(res)
+        #print(len(obs.observation.feature_minimap))
+        input_data = torch.tensor(obs.observation.feature_minimap)
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
         #print(input_data)
@@ -182,13 +200,12 @@ class SmartMineralAgent(base_agent.BaseAgent):
         
         policy.rewards.append(reward)
         self.step_minerals.append(minerals)
-        print(self.actions[action])
+        #print(self.actions[action])
+        print(self.actions)
         #print(len(obs.observation.feature_units[0]))
-        return actions.FunctionCall(_ATTACK_MINIMAP,[_NOT_QUEUED,self.actions[action]])
+        return actions.FUNCTIONS.Move_screen("now",self.actions[action])
 
         
-        
-        if ACTION_ATTACK_MINIMAP in obs.observation['available_actions']:
-            pass 
+
 
         return actions.FUNCTIONS.no_op()
