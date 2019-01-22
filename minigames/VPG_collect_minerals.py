@@ -22,7 +22,7 @@ from torch.distributions import Categorical
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_SELF = features.PlayerRelative.SELF
@@ -59,8 +59,9 @@ class VPG(nn.Module):
     def __init__(self,gamma=0.99):
         super(VPG, self).__init__()
 
-        self.linear_one = nn.Linear(28672,57344)
-        self.linear_two = nn.Linear(57344, 20)
+        self.linear_one = nn.Linear(572,1144)
+        self.linear_two = nn.Linear(1144, 20)
+        self.dropout = nn.Dropout(.3)
 
         self.gamma = gamma
         self.state = []
@@ -81,7 +82,6 @@ optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimi
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state):
-    #state = torch.from_numpy(state).float().unsqueeze(0) # retreiving the current state of the game to determine a action
     probs = policy(state)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
@@ -104,7 +104,8 @@ def finish_episode():
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
-    policy_loss = torch.cat(policy_loss).sum()
+    print(policy_loss)
+    policy_loss = torch.stack(policy_loss,dim=0).sum()
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
@@ -146,8 +147,8 @@ class SmartMineralAgent(base_agent.BaseAgent):
         
         if len(coordinates) < 20:
             while len(coordinates) < 20:
-                dist = np.linalg.norm(np.array([64,64]) - np.array(marine_coord))
-                coordinates.append([dist,[64,64]])
+                dist = np.linalg.norm(np.array([coordinates[0][1][0],coordinates[0][1][1]]) - np.array(marine_coord))
+                coordinates.append([dist,[coordinates[0][1][0],coordinates[0][1][1]]])
         
         coordinates.sort(key=lambda x : x[0])
         res = []
@@ -176,17 +177,20 @@ class SmartMineralAgent(base_agent.BaseAgent):
             return actions.FunctionCall(_SELECT_POINT,[_NOT_QUEUED,[x,y]])
         
         res = obs.observation.feature_units
-        if len(res) < 22:
-            #res.append()
-            for i in range(22 - len(res)):
-                np.append(res,torch.zeros(1,26),axis=0)
+        while len(res) < 22:
+            print(len(res))
+            print(len([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]))
+            res = np.append(res,[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]],axis=0)
         #print(len(obs.observation.feature_minimap))
-        input_data = torch.tensor(obs.observation.feature_minimap)
+        input_data = torch.tensor(res)
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
-        #print(input_data)
+        print(input_data)
         #print(select_action(input_data))
         action = select_action(input_data)
+        #policy_action = self.actions[action]
+
+        
         unit_type = obs.observation.feature_screen[_UNIT_TYPE]
         marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
         i = random.randint(0,len(marine_y) - 1)
@@ -203,9 +207,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         #print(self.actions[action])
         print(self.actions)
         #print(len(obs.observation.feature_units[0]))
-        return actions.FUNCTIONS.Move_screen("now",self.actions[action])
-
-        
-
-
-        return actions.FUNCTIONS.no_op()
+        if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
+            return actions.FUNCTIONS.Move_screen("now",self.actions[action])
+        else:
+            return actions.FUNCTIONS.no_op()
