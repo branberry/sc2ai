@@ -22,7 +22,9 @@ from torch.distributions import Categorical
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
+if torch.cuda.is_available():
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_SELF = features.PlayerRelative.SELF
@@ -62,10 +64,10 @@ class VPG(nn.Module):
         self.linear_one = nn.Linear(572,1144)
         self.linear_two = nn.Linear(1144, 20)
         self.dropout = nn.Dropout(.3)
-
         self.gamma = gamma
         self.state = []
         self.actions = []
+
         # Episode policy and reward history
         self.log_probs = []
         self.rewards = []
@@ -76,6 +78,7 @@ class VPG(nn.Module):
         return F.softmax(action_scores,dim=-1)
 
 
+# Instantiating the neural network that will serve as the policy gradient 
 policy = VPG()
 
 optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
@@ -87,11 +90,17 @@ def select_action(state):
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
     m = Categorical(probs) 
-    action = m.sample()
+
+    action = m.sample() 
     policy.log_probs.append(m.log_prob(action))
     return action.item()
 
 def finish_episode():
+    """
+        This method is called at the end of the episode to compute the policy loss i.e. to see how 
+        well the model performed, and then upgrade the neural network based on this metric.
+
+    """
     R = 0
     policy_loss = []
     rewards = []
@@ -103,9 +112,10 @@ def finish_episode():
 
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
+        print(log_prob)
     optimizer.zero_grad()
-    print(policy_loss)
-    policy_loss = torch.stack(policy_loss,dim=0).sum()
+    print(policy_loss[0])
+    policy_loss = torch.stack(policy_loss,dim=-1).sum()
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
@@ -119,12 +129,16 @@ def coordinates(mask):
     y,x = mask.nonzero()
     return list(zip(x,y))
 class SmartMineralAgent(base_agent.BaseAgent):
-    
+    """
+
+    """
     def __init__(self):
         super(SmartMineralAgent, self).__init__()
         self.step_minerals = []
         self.reward = 0
+        self.episode_count = 0
         self.actions = []
+        self.start_data = []
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
             if unit.unit_type == unit_type]
@@ -132,81 +146,92 @@ class SmartMineralAgent(base_agent.BaseAgent):
     def can_do(self, obs, action):
         return action in obs.observation.available_actions
 
-    def get_actions(self,feature_units,marine_coord):
+    def get_actions(self,marine_coord):
         """
             This function returns a 2d-array 
             containing the coordinates of each mineral by order of
             closest mineral to furthest
         """
         coordinates = []
-        for unit in feature_units:
+        for unit in self.start_data:
             if unit[0] == 1680:
                 dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
                 coords = [unit[12],unit[13]]
                 coordinates.append([dist,coords])
-        
-        if len(coordinates) < 20:
-            while len(coordinates) < 20:
-                dist = np.linalg.norm(np.array([coordinates[0][1][0],coordinates[0][1][1]]) - np.array(marine_coord))
-                coordinates.append([dist,[coordinates[0][1][0],coordinates[0][1][1]]])
-        
+  
         coordinates.sort(key=lambda x : x[0])
         res = []
+
         for coord in coordinates:
             res.append(coord[1])
         return res
 
     def step(self, obs):
         """
-            method is called every frame
+            The step method is the meat and bones of our experiment.  
+            In the step function,we have accesss to all of the game data within the obs object.
+            This method is called every frame of the game, and it MUST return an action function.
         """
 
+        # grabbing the current mineral count at the given frame
+        minerals = obs.observation['player'][1] 
 
-        minerals = obs.observation['player'][1]
-        if obs.last():
-            finish_episode()
+
+        # 
         if obs.first():
+            self.episode_count += 1
+            # append the start mineral count
+            # we use the mineral count to determine the 
             self.step_minerals.append(minerals)
-
-             #return actions.FUNCTIONS.
+            self.start_data = obs.observation.feature_units
             unit_type = obs.observation.feature_screen[_UNIT_TYPE]
             marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
             i = random.randint(0,len(marine_y) - 1)
             x = marine_x[i]
             y = marine_y[i]
             return actions.FunctionCall(_SELECT_POINT,[_NOT_QUEUED,[x,y]])
+
+        # obs.last() returns a boolean if the frame is the last in an episode or not
+        if obs.last():
+            print("Epsiode " + str(self.episode_count) + " completed")
+            finish_episode()
         
         res = obs.observation.feature_units
         while len(res) < 22:
-            print(len(res))
-            print(len([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]))
             res = np.append(res,[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]],axis=0)
-        #print(len(obs.observation.feature_minimap))
+        
         input_data = torch.tensor(res)
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
-        print(input_data)
-        #print(select_action(input_data))
-        action = select_action(input_data)
-        #policy_action = self.actions[action]
 
-        
+        action = select_action(input_data)
+
+        # TODO: look at this code more closely
         unit_type = obs.observation.feature_screen[_UNIT_TYPE]
         marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
         i = random.randint(0,len(marine_y) - 1)
         x = marine_x[i]
         y = marine_y[i]
-        self.actions = self.get_actions(obs.observation.feature_units,[x,y])
+
+
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
-            reward = (minerals - self.step_minerals[len(self.step_minerals) - 1]) / 5
+
+            # based on the number of minerals collected from a given step,
+            # we want to reward the agent accordingly. So, if the agent collected
+            # two mineral shards, the difference would be:
+            # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
+            # The self.step_minerals array contains the previous minerals from all previous steps
+            # and the minerals variable contains the current mineral count for the agent 
+            reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
             reward = -1
         
         policy.rewards.append(reward)
         self.step_minerals.append(minerals)
-        #print(self.actions[action])
-        print(self.actions)
-        #print(len(obs.observation.feature_units[0]))
+
+        self.actions = self.get_actions([x,y])
+
+        # return the action that the policy chose!
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             return actions.FUNCTIONS.Move_screen("now",self.actions[action])
         else:
