@@ -62,7 +62,7 @@ class VPG(nn.Module):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(7056,14112)
-        self.linear_two = nn.Linear(1144, 20)
+        self.linear_two = nn.Linear(14112, 20)
         self.dropout = nn.Dropout(.5)
         self.gamma = gamma
         self.state = []
@@ -200,7 +200,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         while len(res) < 22:
             res = np.append(res,[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]],axis=0)
         
-        input_data = torch.tensor(res)
+        input_data = torch.tensor(obs.observation.feature_screen[0])
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
         action = select_action(input_data)
@@ -208,7 +208,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         player_relative = obs.observation.feature_screen.player_relative
 
         marines = coordinates(player_relative == PLAYER_SELF)
-        test = torch.tensor(obs.observation.feature_screen[0])
+        test = torch.tensor(obs.observation.feature_screen[3])
         test = torch.flatten(test)
         #print(len(test))
         print(len(obs.observation.feature_screen))
