@@ -166,7 +166,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         for coord in coordinates:
             res.append(coord[1])
 
-        while len(feature_units) < 22:
+        while len(res) < 22:
             res.append([999,999])
         
         print(res)
