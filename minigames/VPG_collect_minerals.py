@@ -61,8 +61,8 @@ class VPG(nn.Module):
     def __init__(self,gamma=0.90):
         super(VPG, self).__init__()
 
-        self.linear_one = nn.Linear(7056,14112)
-        self.linear_two = nn.Linear(14112, 20)
+        self.linear_one = nn.Linear(7056,3528)
+        self.linear_two = nn.Linear(3528, 20)
         self.dropout = nn.Dropout(.5)
         self.gamma = gamma
         self.state = []
@@ -195,10 +195,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         if obs.last():
             print("Epsiode " + str(self.episode_count) + " completed")
             finish_episode()
-        
-        res = obs.observation.feature_units
-        while len(res) < 22:
-            res = np.append(res,[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]],axis=0)
+
         
         input_data = torch.tensor(obs.observation.feature_screen[0])
         input_data = torch.flatten(input_data)
@@ -207,8 +204,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
         player_relative = obs.observation.feature_screen.player_relative
 
+        # obs.observation.feature_screen[4] represents the player_id screen of the pysc2 GUI
         marines = coordinates(player_relative == PLAYER_SELF)
-        test = torch.tensor(obs.observation.feature_screen[3])
+        test = torch.tensor(obs.observation.feature_screen[4])
         test = torch.flatten(test)
         #print(len(test))
         print(len(obs.observation.feature_screen))
