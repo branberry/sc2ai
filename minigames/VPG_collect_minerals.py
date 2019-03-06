@@ -109,13 +109,12 @@ def finish_episode():
         rewards.insert(0,R)
     rewards = torch.tensor(rewards)
     rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
-    print(R)
+
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
     policy_loss = torch.stack(policy_loss,dim=-1).sum()
-    print(policy_loss)
-    print(policy.log_probs)
+
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
