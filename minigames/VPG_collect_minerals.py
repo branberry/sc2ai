@@ -62,7 +62,7 @@ class VPG(nn.Module):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(7056,3528)
-        self.linear_two = nn.Linear(3528, 20)
+        self.linear_two = nn.Linear(3528, 21)
         self.dropout = nn.Dropout(.5)
         self.gamma = gamma
         self.state = []
@@ -166,7 +166,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         for coord in coordinates:
             res.append(coord[1])
 
-        while len(res) < 22:
+        while len(res) < 21:
             res.append([999,999])
         
         print(res)
