@@ -145,14 +145,14 @@ class SmartMineralAgent(base_agent.BaseAgent):
     def can_do(self, obs, action):
         return action in obs.observation.available_actions
 
-    def get_actions(self,marine_coord):
+    def get_actions(self,marine_coord,feature_units):
         """
             This function returns a 2d-array 
             containing the coordinates of each mineral by order of
             closest mineral to furthest
         """
         coordinates = []
-        for unit in self.start_data:
+        for unit in feature_units:
             if unit[0] == 1680:
                 dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
                 coords = [unit[12],unit[13]]
@@ -161,8 +161,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates.sort(key=lambda x : x[0])
         res = []
 
+
+
         for coord in coordinates:
             res.append(coord[1])
+
+        while len(feature_units) < 22:
+            res.append([999,999])
+        
+        print(res)
         return res
 
     def step(self, obs):
@@ -187,7 +194,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
             marines = coordinates(player_relative == PLAYER_SELF)
 
             marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
-            self.actions = self.get_actions(marine_coordinates)
             return actions.FUNCTIONS.select_army("select")
 
         # obs.last() returns a boolean if the frame is the last in an episode or not
@@ -199,7 +205,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
         input_data = torch.tensor(obs.observation.feature_screen[0])
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
-        action = select_action(input_data)
 
         player_relative = obs.observation.feature_screen.player_relative
 
@@ -207,11 +212,10 @@ class SmartMineralAgent(base_agent.BaseAgent):
         marines = coordinates(player_relative == PLAYER_SELF)
         test = torch.tensor(obs.observation.feature_screen[4])
         test = torch.flatten(test)
-        #print(len(test))
-        print(len(obs.observation.feature_screen))
-        #print(obs.observation.feature_screen)
+
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
 
+        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
 
@@ -224,12 +228,20 @@ class SmartMineralAgent(base_agent.BaseAgent):
             self.reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
             self.reward = -1
-        
+
+
+        action = select_action(input_data)
+
         policy.rewards.append(self.reward)
         self.step_minerals.append(minerals)
         #self.actions = self.get_actions(marine_coordinates)
         # return the action that the policy chose!
+
+
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
-            return actions.FUNCTIONS.Move_screen("now",self.actions[action])
+            if self.actions[action][0] != 999:
+                return actions.FUNCTIONS.Move_screen("now",self.actions[action])
+            else:
+                return actions.FUNCTIONS.no_op()
         else:
             return actions.FUNCTIONS.no_op()
