@@ -55,15 +55,15 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.99
+GAMMA = 0.90
 
 class VPG(nn.Module):
-    def __init__(self,gamma=0.99):
+    def __init__(self,gamma=0.90):
         super(VPG, self).__init__()
 
-        self.linear_one = nn.Linear(572,1144)
+        self.linear_one = nn.Linear(7056,14112)
         self.linear_two = nn.Linear(1144, 20)
-        self.dropout = nn.Dropout(.3)
+        self.dropout = nn.Dropout(.5)
         self.gamma = gamma
         self.state = []
         self.actions = []
@@ -109,13 +109,13 @@ def finish_episode():
         rewards.insert(0,R)
     rewards = torch.tensor(rewards)
     rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
-
+    print(R)
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
-        print(log_prob)
     optimizer.zero_grad()
-    print(policy_loss[0])
     policy_loss = torch.stack(policy_loss,dim=-1).sum()
+    print(policy_loss)
+    print(policy.log_probs)
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
@@ -184,12 +184,12 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # we use the mineral count to determine the 
             self.step_minerals.append(minerals)
             self.start_data = obs.observation.feature_units
-            unit_type = obs.observation.feature_screen[_UNIT_TYPE]
-            marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
-            i = random.randint(0,len(marine_y) - 1)
-            x = marine_x[i]
-            y = marine_y[i]
-            return actions.FunctionCall(_SELECT_POINT,[_NOT_QUEUED,[x,y]])
+            player_relative = obs.observation.feature_screen.player_relative
+            marines = coordinates(player_relative == PLAYER_SELF)
+
+            marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
+            self.actions = self.get_actions(marine_coordinates)
+            return actions.FUNCTIONS.select_army("select")
 
         # obs.last() returns a boolean if the frame is the last in an episode or not
         if obs.last():
@@ -203,15 +203,17 @@ class SmartMineralAgent(base_agent.BaseAgent):
         input_data = torch.tensor(res)
         input_data = torch.flatten(input_data)
         input_data = input_data.float()
-
         action = select_action(input_data)
 
-        # TODO: look at this code more closely
-        unit_type = obs.observation.feature_screen[_UNIT_TYPE]
-        marine_y,marine_x = (unit_type == _TERRAN_MARINE).nonzero()
-        i = random.randint(0,len(marine_y) - 1)
-        x = marine_x[i]
-        y = marine_y[i]
+        player_relative = obs.observation.feature_screen.player_relative
+
+        marines = coordinates(player_relative == PLAYER_SELF)
+        test = torch.tensor(obs.observation.feature_screen[0])
+        test = torch.flatten(test)
+        #print(len(test))
+        print(len(obs.observation.feature_screen))
+        #print(obs.observation.feature_screen)
+        marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
 
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
@@ -222,15 +224,13 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
+            self.reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
-            reward = -1
+            self.reward = -1
         
-        policy.rewards.append(reward)
+        policy.rewards.append(self.reward)
         self.step_minerals.append(minerals)
-
-        self.actions = self.get_actions([x,y])
-
+        #self.actions = self.get_actions(marine_coordinates)
         # return the action that the policy chose!
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             return actions.FUNCTIONS.Move_screen("now",self.actions[action])
