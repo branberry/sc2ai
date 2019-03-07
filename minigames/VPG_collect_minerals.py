@@ -55,10 +55,10 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.90
+GAMMA = 0.99
 
 class VPG(nn.Module):
-    def __init__(self,gamma=0.90):
+    def __init__(self,gamma=0.99):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(7056,3528)
@@ -81,7 +81,7 @@ class VPG(nn.Module):
 # Instantiating the neural network that will serve as the policy gradient 
 policy = VPG()
 
-optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
+optimizer = optim.Adam(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state):
