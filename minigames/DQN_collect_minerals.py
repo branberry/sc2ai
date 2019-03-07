@@ -13,9 +13,32 @@ import torchvision.transforms as T
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+BATCH_SIZE = 128
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+
 class DQN(nn.Module):
-    def __init__(self,h,w):
+    def __init__(self):
         super(DQN, self).__init__()
+
+
+model = DQN()
+
+model.cuda()
+def optimize_model():
+    pass
+
+steps_done = 0
+
+def select_action(state):
+    global steps_done
+    sample = random.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1.* steps_done / EPS_DECAY)
+
+    steps_done += 1
+    if sample > eps_threshold:
 
 class DQNMineralAgent(base_agent.BaseAgent):
     
