@@ -163,8 +163,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates.sort(key=lambda x : x[0])
         res = []
 
-
-
         for coord in coordinates:
             res.append(coord[1])
 
@@ -203,17 +201,13 @@ class SmartMineralAgent(base_agent.BaseAgent):
             print("Epsiode " + str(self.episode_count) + " completed")
             finish_episode()
 
-        
-        input_data = torch.tensor(obs.observation.feature_screen[0])
-        input_data = torch.flatten(input_data)
-        input_data = input_data.float()
+        input_data = torch.tensor(obs.observation.feature_screen[4]).flatten().float()
 
         player_relative = obs.observation.feature_screen.player_relative
 
         # obs.observation.feature_screen[4] represents the player_id screen of the pysc2 GUI
         marines = coordinates(player_relative == PLAYER_SELF)
-        test = torch.tensor(obs.observation.feature_screen[4])
-        test = torch.flatten(test)
+
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
 
@@ -227,9 +221,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
+            self.reward += (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
-            self.reward = -1
+            self.reward += -1
 
 
         action = select_action(input_data)
