@@ -55,15 +55,15 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.99
+GAMMA = 0.85
 
 class VPG(nn.Module):
-    def __init__(self,gamma=0.99):
+    def __init__(self,gamma=0.85):
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(7056,3528)
         self.linear_two = nn.Linear(3528, 21)
-        self.dropout = nn.Dropout(.25)
+        self.dropout = nn.Dropout(.50)
         self.gamma = gamma
         self.state = []
         self.actions = []
