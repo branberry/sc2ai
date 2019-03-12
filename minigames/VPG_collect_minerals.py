@@ -55,7 +55,7 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.99
+GAMMA = 0.90
 
 class VPG(nn.Module):
     def __init__(self,gamma=0.99):
@@ -67,6 +67,7 @@ class VPG(nn.Module):
         self.linear_three = nn.Linear(1763,1763)
         self.linear_four = nn.Linear(1763,200)
         self.linear_five = nn.Linear(200, 21)
+        self.linear_six = nn.Linear(21, 5)
 
         self.gamma = gamma
         self.state = []
@@ -79,13 +80,11 @@ class VPG(nn.Module):
     def forward(self, observation):
         observation = F.relu(self.linear_one(observation))
         observation = F.dropout(self.dropout(observation))
-
-        #observation = self.dropout(observation)
-        observation = F.sigmoid(self.linear_two(observation))
-        observation = F.dropout(self.dropout(observation))
+        observation = F.relu(self.linear_two(observation))
         observation = F.relu(self.linear_three(observation))
         observation = F.relu(self.linear_four(observation))
-        action_scores = F.relu(self.linear_five(observation))
+        observation = F.relu(self.linear_five(observation))
+        action_scores = F.sigmoid(self.linear_six(observation))
         return F.softmax(action_scores,dim=-1)
 
 
@@ -94,7 +93,7 @@ policy = VPG()
 
 policy.cuda()
 
-optimizer = optim.Adam(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
+optimizer = optim.RMSprop(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state):
@@ -234,7 +233,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # and the minerals variable contains the current mineral count for the agent 
             self.reward += (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
-            self.reward += -1
+            self.reward += -2
 
 
         action = select_action(input_data)
