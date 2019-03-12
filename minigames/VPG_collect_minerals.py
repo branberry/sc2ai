@@ -55,15 +55,22 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
+<<<<<<< HEAD
 GAMMA = 0.99
 
 class VPG(nn.Module):
     def __init__(self,gamma=0.99):
+=======
+GAMMA = 0.85
+
+class VPG(nn.Module):
+    def __init__(self,gamma=0.85):
+>>>>>>> bdc8019f8c54a7c20274eaab342bca249af6b9a3
         super(VPG, self).__init__()
 
         self.linear_one = nn.Linear(7056,3528)
-        self.linear_two = nn.Linear(3528, 20)
-        self.dropout = nn.Dropout(.5)
+        self.linear_two = nn.Linear(3528, 21)
+        self.dropout = nn.Dropout(.50)
         self.gamma = gamma
         self.state = []
         self.actions = []
@@ -81,7 +88,13 @@ class VPG(nn.Module):
 # Instantiating the neural network that will serve as the policy gradient 
 policy = VPG()
 
+<<<<<<< HEAD
 optimizer = optim.Adam(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
+=======
+policy.cuda()
+
+optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
+>>>>>>> bdc8019f8c54a7c20274eaab342bca249af6b9a3
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state):
@@ -161,12 +174,10 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates.sort(key=lambda x : x[0])
         res = []
 
-
-
         for coord in coordinates:
             res.append(coord[1])
 
-        while len(res) < 22:
+        while len(res) < 21:
             res.append([999,999])
         
         print(res)
@@ -201,17 +212,13 @@ class SmartMineralAgent(base_agent.BaseAgent):
             print("Epsiode " + str(self.episode_count) + " completed")
             finish_episode()
 
-        
-        input_data = torch.tensor(obs.observation.feature_screen[0])
-        input_data = torch.flatten(input_data)
-        input_data = input_data.float()
+        input_data = torch.tensor(obs.observation.feature_screen[4]).flatten().float()
 
         player_relative = obs.observation.feature_screen.player_relative
 
         # obs.observation.feature_screen[4] represents the player_id screen of the pysc2 GUI
         marines = coordinates(player_relative == PLAYER_SELF)
-        test = torch.tensor(obs.observation.feature_screen[4])
-        test = torch.flatten(test)
+
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
 
@@ -225,9 +232,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward = (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
+            self.reward += (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
         else:
-            self.reward = -1
+            self.reward += -1
 
 
         action = select_action(input_data)
