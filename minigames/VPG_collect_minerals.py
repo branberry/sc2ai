@@ -61,10 +61,10 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.85
+GAMMA = 0.99
 
 class VPG(nn.Module):
-    def __init__(self,gamma=0.85):
+    def __init__(self,gamma=0.99):
         super(VPG, self).__init__()
 
         self.gamma = gamma
@@ -95,7 +95,7 @@ class VPG(nn.Module):
         observation = F.relu(self.linear_1(observation))
         observation = F.relu(self.linear_2(observation))
         action_scores = self.linear_3(observation)
-        return F.softmax(action_scores,dim=-1)
+        return action_scores
 
 
 # Instantiating the neural network that will serve as the policy gradient 
@@ -103,7 +103,7 @@ policy = VPG()
 
 policy.cuda()
 
-optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
+optimizer = optim.Adam(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state,steps_done):
@@ -126,13 +126,6 @@ def select_action(state,steps_done):
         print("Random action: " + str(action))
         return action
 
-def state_preprocess(state):
-    kernels = []
-    kernels.append([])
-
-    for i in range(len(state)):
-        print(state[i])
-        #print(i % 14)
 
 def finish_episode():
     """
@@ -152,7 +145,7 @@ def finish_episode():
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
-    policy_loss = torch.stack(policy_loss,dim=-1).sum()
+    policy_loss = torch.cat(policy_loss).sum()
 
     policy_loss.backward()
     optimizer.step()
@@ -180,6 +173,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.start_data = []
         self.steps = 0
 
+
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
             if unit.unit_type == unit_type]
@@ -188,7 +182,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         return action in obs.observation.available_actions
     
 
-    def get_actions(self,marine_coord,feature_units):
+    def get_actions(self,feature_units):
         """
             This function returns a 2d-array 
             containing the coordinates of each mineral by order of
@@ -197,11 +191,10 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates = []
         for unit in feature_units:
             if unit[0] == 1680:
-                dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
+                dist = np.linalg.norm(np.array([unit[12],unit[13]]))
                 coords = [unit[12],unit[13]]
                 coordinates.append([dist,coords])
   
-        coordinates.sort(key=lambda x : x[0])
         res = []
 
         for coord in coordinates:
@@ -210,6 +203,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         while len(res) < 21:
             res.append([999,999])
         
+        print(res)
         return res
 
     def step(self, obs):
@@ -232,7 +226,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             self.start_data = obs.observation.feature_units
             player_relative = obs.observation.feature_screen.player_relative
             marines = coordinates(player_relative == PLAYER_SELF)
-
+            self.actions = self.get_actions(obs.observation.feature_units)
             marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
             return actions.FUNCTIONS.select_army("select")
 
@@ -264,9 +258,11 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward += (minerals - self.step_minerals[len(self.step_minerals) - 1])//100
+            self.reward += 1
         else:
-            self.reward += -1
+            self.reward += -0.01
+
+
 
         policy.rewards.append(self.reward)
         self.step_minerals.append(minerals)
@@ -274,10 +270,8 @@ class SmartMineralAgent(base_agent.BaseAgent):
         # return the action that the policy chose!
         self.steps += 1
 
-        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
-
         action = select_action(input_data,self.steps)
-
+        
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             if self.actions[action][0] != 999:
                 return actions.FUNCTIONS.Move_screen("now",self.actions[action])
