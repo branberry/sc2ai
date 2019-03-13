@@ -89,13 +89,13 @@ class VPG(nn.Module):
     def forward(self, observation):
         observation = self.pool(F.relu(self.conv1(observation)))
         observation = self.pool(F.relu(self.conv2(observation)))
-        observation = self.dropout(observation)
-        print(observation)
         observation = observation.view(-1,4624)
         observation = F.relu(self.linear_1(observation))
+        observation = self.dropout(observation)
         observation = F.relu(self.linear_2(observation))
         action_scores = self.linear_3(observation)
-        return action_scores
+        #print(action_scores.view(action_scores.size(0), -1))
+        return F.log_softmax(action_scores)
 
 
 # Instantiating the neural network that will serve as the policy gradient 
@@ -103,7 +103,7 @@ policy = VPG()
 
 policy.cuda()
 
-optimizer = optim.Adam(policy.parameters(), lr=1e-1) # utilizing the ADAM optimizer for gradient ascent
+optimizer = optim.RMSprop(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
 def select_action(state,steps_done):
@@ -111,12 +111,13 @@ def select_action(state,steps_done):
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1.* steps_done / EPS_DECAY)
 
     probs = policy(state)
+    print(probs)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
     m = Categorical(probs) 
     if sample > eps_threshold:
-        action = m.sample() 
+        action = m.sample()
         print("action from policy " + str(action))
         policy.log_probs.append(m.log_prob(action))
         return action.item()
@@ -144,6 +145,8 @@ def finish_episode():
 
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
+        print(log_prob)
+        print(reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
 
@@ -232,7 +235,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
         # obs.last() returns a boolean if the frame is the last in an episode or not
         if obs.last():
-            print("Episode " + str(self.episode_count) + " completed")
+            print("\n\n\nEpisode " + str(self.episode_count) + " completed\n\n\n")
             #self.steps = 0
             finish_episode()
 
