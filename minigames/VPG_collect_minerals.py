@@ -77,9 +77,9 @@ class VPG(nn.Module):
         # Neural network layers
         self.conv1 = nn.Conv2d(3, 6, 6)
         self.conv2 = nn.Conv2d(6, 16, 6)
-        self.linear_1 = nn.Linear(4624,120)
-        self.linear_2 = nn.Linear(120,84)
-        self.linear_3 = nn.Linear(84,21)
+        self.linear_1 = nn.Linear(4624,1200)
+        self.linear_2 = nn.Linear(1200,840)
+        self.linear_3 = nn.Linear(840,21)
 
 
         # Episode policy and reward history
@@ -111,7 +111,6 @@ def select_action(state,steps_done):
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1.* steps_done / EPS_DECAY)
 
     probs = policy(state)
-    print(probs)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
@@ -145,8 +144,6 @@ def finish_episode():
 
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
-        print(log_prob)
-        print(reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
 
@@ -171,6 +168,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         super(SmartMineralAgent, self).__init__()
         self.step_minerals = []
         self.reward = 0
+        self.feature_units = None
         self.episode_count = 0
         self.actions = []
         self.start_data = []
@@ -185,7 +183,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         return action in obs.observation.available_actions
     
 
-    def get_actions(self,feature_units):
+    def get_actions(self,marine_coord,feature_units):
         """
             This function returns a 2d-array 
             containing the coordinates of each mineral by order of
@@ -194,10 +192,11 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates = []
         for unit in feature_units:
             if unit[0] == 1680:
-                dist = np.linalg.norm(np.array([unit[12],unit[13]]))
+                dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
                 coords = [unit[12],unit[13]]
                 coordinates.append([dist,coords])
-  
+
+        coordinates.sort(key=lambda x : x[0])
         res = []
 
         for coord in coordinates:
@@ -206,7 +205,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
         while len(res) < 21:
             res.append([999,999])
         
-        print(res)
         return res
 
     def step(self, obs):
@@ -226,19 +224,19 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # append the start mineral count
             # we use the mineral count to determine the 
             self.step_minerals.append(minerals)
+            self.feature_units = obs.observation.feature_units
             self.start_data = obs.observation.feature_units
             player_relative = obs.observation.feature_screen.player_relative
             marines = coordinates(player_relative == PLAYER_SELF)
-            self.actions = self.get_actions(obs.observation.feature_units)
             marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
+            self.reward = 0
             return actions.FUNCTIONS.select_army("select")
 
         # obs.last() returns a boolean if the frame is the last in an episode or not
         if obs.last():
-            print("\n\n\nEpisode " + str(self.episode_count) + " completed\n\n\n")
             #self.steps = 0
             finish_episode()
-
+            print("\n\n\nEpisode " + str(self.episode_count) + " completed\n\n\n")
 
         input_data = torch.tensor([[obs.observation.feature_screen[6],obs.observation.feature_screen[4],obs.observation.feature_screen[5]]]).float()
         
@@ -251,6 +249,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
+        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
 
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
