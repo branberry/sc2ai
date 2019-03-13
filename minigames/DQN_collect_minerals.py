@@ -51,13 +51,23 @@ class DQN(nn.Module):
     def __init__(self):
         super(DQN, self).__init__()
 
-        self.linear_one = nn.Linear(7056,3528)
-        self.linear_two = nn.Linear(3528, 21)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
+        self.bn3 = nn.BatchNorm2d(32)
+
+
+        linear_input_size = 7056
+        self.head = nn.Linear(linear_input_size, 2) # 448 or 512
     
-    def forward(self, observation):
-        observation = F.relu(self.linear_one(observation))
-        action_scores = self.linear_two(observation)
-        return F.softmax(action_scores,dim=-1)
+    def forward(self, x):
+        print(x)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        return F.softmax(x,dim=-1)
 
 policy_net = DQN().to(device)
 target_net = DQN().to(device)
@@ -102,7 +112,6 @@ def optimize_model():
     # of the action taken.  These are the actions which would ahve been taken for
     # each state within the batch according to the policy
     state_action_values = policy_net(state_batch).gather(1, action_batch)
-    print(state_action_values)
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch

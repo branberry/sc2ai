@@ -13,11 +13,13 @@ import math
 
 import numpy as np
 
+from torchvision.transforms import transforms
+from torch.utils.data import DataLoader
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import torchvision.transforms as T
 from torch.distributions import Categorical
 
 
@@ -28,6 +30,10 @@ if torch.cuda.is_available():
 
 PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL
 PLAYER_SELF = features.PlayerRelative.SELF
+
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
 
 _NO_OP = actions.FUNCTIONS.no_op.id
 _SELECT_POINT = actions.FUNCTIONS.select_point.id
@@ -61,20 +67,34 @@ class VPG(nn.Module):
     def __init__(self,gamma=0.85):
         super(VPG, self).__init__()
 
-        self.linear_one = nn.Linear(7056,3528)
-        self.linear_two = nn.Linear(3528, 21)
-        self.dropout = nn.Dropout(.50)
         self.gamma = gamma
         self.state = []
         self.actions = []
+
+        self.pool = nn.MaxPool2d(2,2)
+        self.dropout = nn.Dropout(.50)
+
+        # Neural network layers
+        self.conv1 = nn.Conv2d(3, 6, 6)
+        self.conv2 = nn.Conv2d(6, 16, 6)
+        self.linear_1 = nn.Linear(4624,120)
+        self.linear_2 = nn.Linear(120,84)
+        self.linear_3 = nn.Linear(84,21)
+
 
         # Episode policy and reward history
         self.log_probs = []
         self.rewards = []
 
     def forward(self, observation):
-        observation = F.relu(self.linear_one(observation))
-        action_scores = self.linear_two(observation)
+        observation = self.pool(F.relu(self.conv1(observation)))
+        observation = self.pool(F.relu(self.conv2(observation)))
+        observation = self.dropout(observation)
+        print(observation)
+        observation = observation.view(-1,4624)
+        observation = F.relu(self.linear_1(observation))
+        observation = F.relu(self.linear_2(observation))
+        action_scores = self.linear_3(observation)
         return F.softmax(action_scores,dim=-1)
 
 
@@ -86,16 +106,33 @@ policy.cuda()
 optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
-def select_action(state):
+def select_action(state,steps_done):
+    sample = random.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1.* steps_done / EPS_DECAY)
+
     probs = policy(state)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
     m = Categorical(probs) 
+    if sample > eps_threshold:
+        action = m.sample() 
+        print("action from policy " + str(action))
+        policy.log_probs.append(m.log_prob(action))
+        return action.item()
+    else:
+        action = torch.tensor(random.randrange(21),device=device, dtype=torch.long)
+        policy.log_probs.append(m.log_prob(action))
+        print("Random action: " + str(action))
+        return action
 
-    action = m.sample() 
-    policy.log_probs.append(m.log_prob(action))
-    return action.item()
+def state_preprocess(state):
+    kernels = []
+    kernels.append([])
+
+    for i in range(len(state)):
+        print(state[i])
+        #print(i % 14)
 
 def finish_episode():
     """
@@ -121,6 +158,7 @@ def finish_episode():
     optimizer.step()
     del policy.rewards[:]
     del policy.log_probs[:]
+    
 
 def coordinates(mask):
     """ 
@@ -140,12 +178,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.episode_count = 0
         self.actions = []
         self.start_data = []
+        self.steps = 0
+
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
             if unit.unit_type == unit_type]
         
     def can_do(self, obs, action):
         return action in obs.observation.available_actions
+    
 
     def get_actions(self,marine_coord,feature_units):
         """
@@ -169,7 +210,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
         while len(res) < 21:
             res.append([999,999])
         
-        print(res)
         return res
 
     def step(self, obs):
@@ -198,12 +238,16 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
         # obs.last() returns a boolean if the frame is the last in an episode or not
         if obs.last():
-            print("Epsiode " + str(self.episode_count) + " completed")
+            print("Episode " + str(self.episode_count) + " completed")
+            #self.steps = 0
             finish_episode()
 
-        input_data = torch.tensor(obs.observation.feature_screen[4]).flatten().float()
 
+        input_data = torch.tensor([[obs.observation.feature_screen[6],obs.observation.feature_screen[4],obs.observation.feature_screen[5]]]).float()
+        
         player_relative = obs.observation.feature_screen.player_relative
+
+        #state_preprocess(obs.observation.feature_screen[4])
 
         # obs.observation.feature_screen[4] represents the player_id screen of the pysc2 GUI
         marines = coordinates(player_relative == PLAYER_SELF)
@@ -211,7 +255,6 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
 
-        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
 
@@ -225,14 +268,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         else:
             self.reward += -1
 
-
-        action = select_action(input_data)
-
         policy.rewards.append(self.reward)
         self.step_minerals.append(minerals)
         #self.actions = self.get_actions(marine_coordinates)
         # return the action that the policy chose!
+        self.steps += 1
 
+        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
+
+        action = select_action(input_data,self.steps)
 
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             if self.actions[action][0] != 999:

@@ -229,6 +229,7 @@ class DQN(nn.Module):
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
+        print(len(x))
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
@@ -339,6 +340,7 @@ steps_done = 0
 def select_action(state):
     global steps_done
     sample = random.random()
+    #print(state)
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
@@ -411,7 +413,7 @@ def optimize_model():
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
-    print(reward_batch)
+    #print(reward_batch)
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
     # for each batch state according to policy_net
@@ -462,7 +464,7 @@ for i_episode in range(num_episodes):
         # Select and perform an action
         action = select_action(state)
         _, reward, done, _ = env.step(action.item())
-        print(reward)
+        #print(reward)
         reward = torch.tensor([reward], device=device)
 
         # Observe new state
