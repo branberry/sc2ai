@@ -140,7 +140,7 @@ def finish_episode():
         R = r + GAMMA * R
         rewards.insert(0,R)
     rewards = torch.tensor(rewards)
-    rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+    #rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
 
     for log_prob, reward in zip(policy.log_probs, rewards):
         policy_loss.append(-log_prob*reward)
