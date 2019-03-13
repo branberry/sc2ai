@@ -260,9 +260,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward += 1
+            self.reward = 1
         else:
-            self.reward += -1
+            self.reward = -0.01
 
 
 
