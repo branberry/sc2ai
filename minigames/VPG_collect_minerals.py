@@ -260,7 +260,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # and the minerals variable contains the current mineral count for the agent 
             self.reward += 1
         else:
-            self.reward += -0.01
+            self.reward += -1
 
 
 
