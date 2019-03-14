@@ -8,7 +8,8 @@ from minigames.collect_minerals import MineralAgent
 from minigames.VPG_collect_minerals import SmartMineralAgent
 from minigames.DQN_collect_minerals import DQNMineralAgent
 def main(unused_argv):
-  agent = DQNMineralAgent()
+  agent = SmartMineralAgent()
+  #agent = DQNMineralAgent()
   #agent = MineralAgent()
   try:
     while True:

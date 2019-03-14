@@ -121,7 +121,6 @@ def optimize_model():
     # of the action taken.  These are the actions which would ahve been taken for
     # each state within the batch according to the policy
     state_action_values = policy_net(state_batch).gather(1, action_batch)
-    print(state_action_values)
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
