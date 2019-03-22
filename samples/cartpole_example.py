@@ -54,10 +54,11 @@ eps = np.finfo(np.float32).eps.item()
 
 def select_action(state):
     state = torch.from_numpy(state).float().unsqueeze(0)
-    print(state)
     probs = policy(state)
     m = Categorical(probs)
     action = m.sample()
+    new_action = probs.max(0)
+    print(new_action)
     policy.saved_log_probs.append(m.log_prob(action))
     return action.item()
 

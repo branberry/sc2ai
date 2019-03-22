@@ -137,12 +137,16 @@ def select_action(state,steps_done):
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
-    m = Categorical(probs) 
+    m = Categorical(probs)
     #print(m.probs())
     action = m.sample()
+
+    new_action = torch.argmax(probs).item()
+    action_prob = torch.tensor([probs[0][new_action]], requires_grad=True)
+    print(action_prob)
     #print("action from policy " + str(action))
-    policy.log_probs.append(m.log_prob(action))
-    return action.item()
+    policy.log_probs.append(action_prob)
+    return new_action
 
 
 def finish_episode():
@@ -214,9 +218,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates = []
         for unit in feature_units:
             if unit[0] == 1680:
-                dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
-                coords = [unit[12],unit[13]]
-                coordinates.append([dist,coords])
+                dist = np.linalg.norm(np.array([unit[12], unit[13]]) - np.array(marine_coord))
+                coords = [unit[12], unit[13]]
+                coordinates.append([dist, coords])
 
         coordinates.sort(key=lambda x : x[0])
         res = []
@@ -225,7 +229,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             res.append(coord[1])
 
         while len(res) < 21:
-            res.append([999,999])
+            res.append([999, 999])
         
         return res
 
@@ -284,7 +288,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # and the minerals variable contains the current mineral count for the agent 
             self.reward = 1
         else:
-            self.reward = -0.001
+            self.reward = -1
 
 
         policy.rewards.append(self.reward)
