@@ -162,7 +162,7 @@ def finish_episode():
         R = r + GAMMA * R
         rewards.insert(0, R)
     rewards = torch.tensor(rewards)
-    rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+    #rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
     print("\n\n\nRETURN:" + str(R))
     for log_prob, reward in zip(policy.log_probs, rewards):
         print("Negative Log Prob: " + str(-log_prob))
