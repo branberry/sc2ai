@@ -54,6 +54,7 @@ eps = np.finfo(np.float32).eps.item()
 
 def select_action(state):
     state = torch.from_numpy(state).float().unsqueeze(0)
+    print(state)
     probs = policy(state)
     m = Categorical(probs)
     action = m.sample()
@@ -87,8 +88,7 @@ def main():
         for t in range(10000):  # Don't infinite loop while learning
             action = select_action(state)
             state, reward, done, _ = env.step(action)
-            if args.render:
-                env.render()
+            env.render()
             policy.rewards.append(reward)
             if done:
                 break
