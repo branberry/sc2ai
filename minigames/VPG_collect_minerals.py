@@ -142,8 +142,7 @@ def select_action(state,steps_done):
     action = m.sample()
 
     new_action = torch.argmax(probs).item()
-    action_prob = torch.tensor([probs[0][new_action]], requires_grad=True)
-    print(action_prob)
+    action_prob = torch.tensor([math.log(probs[0][new_action])], requires_grad=True)
     #print("action from policy " + str(action))
     policy.log_probs.append(action_prob)
     return new_action
@@ -162,11 +161,10 @@ def finish_episode():
         R = r + GAMMA * R
         rewards.insert(0, R)
     rewards = torch.tensor(rewards)
-    #rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+    rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
     print("\n\n\nRETURN:" + str(R))
     for log_prob, reward in zip(policy.log_probs, rewards):
-        print("Negative Log Prob: " + str(-log_prob))
-        print("Reward: " + str(reward))
+
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
@@ -275,7 +273,8 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
-        self.actions = self.get_actions(marine_coordinates,self.start_data)
+        #self.actions = self.get_actions(marine_coordinates,self.start_data)
+        self.actions = self.get_actions(marine_coordinates, obs.observation.feature_units)
 
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
@@ -286,7 +285,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward = 1
+            self.reward = 0
         else:
             self.reward = -1
 
@@ -297,11 +296,11 @@ class SmartMineralAgent(base_agent.BaseAgent):
         # return the action that the policy chose!
         self.steps += 1
 
-        action = select_action(input_data,self.steps)
+        action = select_action(input_data, self.steps)
         
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             if self.actions[action][0] != 999:
-                return actions.FUNCTIONS.Move_screen("now",self.actions[action])
+                return actions.FUNCTIONS.Move_screen("now", self.actions[action])
             else:
                 return actions.FUNCTIONS.no_op()
         else:

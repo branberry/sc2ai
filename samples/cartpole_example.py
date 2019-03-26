@@ -57,8 +57,6 @@ def select_action(state):
     probs = policy(state)
     m = Categorical(probs)
     action = m.sample()
-    new_action = probs.max(0)
-    print(new_action)
     policy.saved_log_probs.append(m.log_prob(action))
     return action.item()
 
@@ -76,6 +74,8 @@ def finish_episode():
         policy_loss.append(-log_prob * reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
+    print(policy_loss)
+    print(R)
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
