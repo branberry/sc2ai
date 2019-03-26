@@ -63,14 +63,27 @@ ACTION_ATTACK_SCREEN = 12
 
 GAMMA = 0.99
 
+
 class VPG(nn.Module):
-    def __init__(self,gamma=0.99):
+    def __init__(self, gamma=0.99):
         super(VPG, self).__init__()
 
         self.gamma = gamma
         self.state = []
         self.actions = []
 
+        self.conv1 = nn.Conv2d(3,16,6)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16,8,6)
+        self.bn2 = nn.BatchNorm2d(8)
+        self.conv3 = nn.Conv2d(8,4,6)
+        self.bn3 = nn.BatchNorm2d(4)
+        self.head = nn.Linear(19044, 21) 
+        self.dropout = nn.Dropout(p=.50)
+        
+        """
+
+        Old network:
         self.pool = nn.MaxPool2d(2,2)
         self.dropout = nn.Dropout(.50)
 
@@ -80,51 +93,59 @@ class VPG(nn.Module):
         self.linear_1 = nn.Linear(4624,1200)
         self.linear_2 = nn.Linear(1200,840)
         self.linear_3 = nn.Linear(840,21)
-
+        """
 
         # Episode policy and reward history
         self.log_probs = []
         self.rewards = []
 
     def forward(self, observation):
+        """
+        Old forward function: 
         observation = self.pool(F.relu(self.conv1(observation)))
         observation = self.pool(F.relu(self.conv2(observation)))
         observation = observation.view(-1,4624)
-        observation = F.relu(self.linear_1(observation))
+        observation = F.sigmoid(self.linear_1(observation))
         observation = self.dropout(observation)
         observation = F.relu(self.linear_2(observation))
-        action_scores = self.linear_3(observation)
+        action_scores = F.sigmoid(self.linear_3(observation))
+        action_scores = F.relu(action_scores)
         #print(action_scores.view(action_scores.size(0), -1))
-        return F.log_softmax(action_scores)
-
+        return F.softmax(action_scores, dim=1)
+        """
+        observation = F.relu(self.bn1(self.conv1(observation)))
+        observation = F.relu(self.bn2(self.conv2(observation)))
+        observation = F.relu(self.bn3(self.conv3(observation)))
+        observation = self.dropout(observation)
+        return F.softmax(self.head(observation.view(observation.size(0), -1)))
+        
 
 # Instantiating the neural network that will serve as the policy gradient 
 policy = VPG()
 
 policy.cuda()
 
-optimizer = optim.RMSprop(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
+optimizer = optim.Adam(policy.parameters(), lr=1e-2) # utilizing the ADAM optimizer for gradient ascent
 eps = np.finfo(np.float32).eps.item() # machine epsilon
 
-def select_action(state,steps_done):
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1.* steps_done / EPS_DECAY)
 
+def select_action(state,steps_done):
+ 
     probs = policy(state)
+
+    #print(probs)
     # creates a categorical distribution
     # a categorical distribution is a discrete probability distribution that describes 
     # the possible results of a random variable.  In this case, our possible results are our available actions
-    m = Categorical(probs) 
-    if sample > eps_threshold:
-        action = m.sample()
-        print("action from policy " + str(action))
-        policy.log_probs.append(m.log_prob(action))
-        return action.item()
-    else:
-        action = torch.tensor(random.randrange(21),device=device, dtype=torch.long)
-        policy.log_probs.append(m.log_prob(action))
-        print("Random action: " + str(action))
-        return action
+    m = Categorical(probs)
+    #print(m.probs())
+    action = m.sample()
+
+    new_action = torch.argmax(probs).item()
+    action_prob = torch.tensor([math.log(probs[0][new_action])], requires_grad=True)
+    #print("action from policy " + str(action))
+    policy.log_probs.append(action_prob)
+    return new_action
 
 
 def finish_episode():
@@ -136,17 +157,19 @@ def finish_episode():
     R = 0
     policy_loss = []
     rewards = []
-    for r in policy.rewards:
+    for r in policy.rewards[::-1]:
         R = r + GAMMA * R
-        rewards.insert(0,R)
+        rewards.insert(0, R)
     rewards = torch.tensor(rewards)
-    #rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
-
+    rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+    print("\n\n\nRETURN:" + str(R))
     for log_prob, reward in zip(policy.log_probs, rewards):
+
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
 
+    print(policy_loss)
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
@@ -170,6 +193,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.reward = 0
         self.feature_units = None
         self.episode_count = 0
+        self.wait_steps = 0
         self.actions = []
         self.start_data = []
         self.steps = 0
@@ -192,9 +216,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
         coordinates = []
         for unit in feature_units:
             if unit[0] == 1680:
-                dist = np.linalg.norm(np.array([unit[12],unit[13]]) - np.array(marine_coord))
-                coords = [unit[12],unit[13]]
-                coordinates.append([dist,coords])
+                dist = np.linalg.norm(np.array([unit[12], unit[13]]) - np.array(marine_coord))
+                coords = [unit[12], unit[13]]
+                coordinates.append([dist, coords])
 
         coordinates.sort(key=lambda x : x[0])
         res = []
@@ -203,7 +227,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             res.append(coord[1])
 
         while len(res) < 21:
-            res.append([999,999])
+            res.append([999, 999])
         
         return res
 
@@ -227,6 +251,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             self.feature_units = obs.observation.feature_units
             self.start_data = obs.observation.feature_units
             player_relative = obs.observation.feature_screen.player_relative
+            
             marines = coordinates(player_relative == PLAYER_SELF)
             marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
             self.reward = 0
@@ -238,8 +263,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
             finish_episode()
             print("\n\n\nEpisode " + str(self.episode_count) + " completed\n\n\n")
 
-        input_data = torch.tensor([[obs.observation.feature_screen[6],obs.observation.feature_screen[4],obs.observation.feature_screen[5]]]).float()
-        
+        input_data = torch.tensor([[obs.observation.feature_screen[6],obs.observation.feature_screen[4],obs.observation.feature_screen[8]]]).float()
         player_relative = obs.observation.feature_screen.player_relative
 
         #state_preprocess(obs.observation.feature_screen[4])
@@ -249,7 +273,8 @@ class SmartMineralAgent(base_agent.BaseAgent):
 
 
         marine_coordinates = np.mean(marines, axis=0).round()  # Average location.
-        self.actions = self.get_actions(marine_coordinates,obs.observation.feature_units)
+        #self.actions = self.get_actions(marine_coordinates,self.start_data)
+        self.actions = self.get_actions(marine_coordinates, obs.observation.feature_units)
 
 
         if minerals - self.step_minerals[len(self.step_minerals) - 1] > 0:
@@ -260,10 +285,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward = 1
+            self.reward = 0
         else:
-            self.reward = -0.01
-
+            self.reward = -1
 
 
         policy.rewards.append(self.reward)
@@ -272,11 +296,11 @@ class SmartMineralAgent(base_agent.BaseAgent):
         # return the action that the policy chose!
         self.steps += 1
 
-        action = select_action(input_data,self.steps)
+        action = select_action(input_data, self.steps)
         
         if actions.FUNCTIONS.Move_screen.id in obs.observation.available_actions:
             if self.actions[action][0] != 999:
-                return actions.FUNCTIONS.Move_screen("now",self.actions[action])
+                return actions.FUNCTIONS.Move_screen("now", self.actions[action])
             else:
                 return actions.FUNCTIONS.no_op()
         else:

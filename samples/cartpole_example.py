@@ -74,6 +74,8 @@ def finish_episode():
         policy_loss.append(-log_prob * reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
+    print(policy_loss)
+    print(R)
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
@@ -87,8 +89,7 @@ def main():
         for t in range(10000):  # Don't infinite loop while learning
             action = select_action(state)
             state, reward, done, _ = env.step(action)
-            if args.render:
-                env.render()
+            env.render()
             policy.rewards.append(reward)
             if done:
                 break
