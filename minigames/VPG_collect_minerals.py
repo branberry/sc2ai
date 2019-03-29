@@ -61,11 +61,11 @@ ACTION_SELECT_GROUP = 4
 ACTION_SELECT_ARMY = 7
 ACTION_ATTACK_SCREEN = 12
 
-GAMMA = 0.99
+GAMMA = 0.5
 
 
 class VPG(nn.Module):
-    def __init__(self, gamma=0.99):
+    def __init__(self, gamma=0.5):
         super(VPG, self).__init__()
 
         self.gamma = gamma
