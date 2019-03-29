@@ -41,11 +41,14 @@ class ReplayMemory():
     def __len__(self):
         return len(self.memory)
 
+# Hyper Parameters
+
 BATCH_SIZE = 128
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 200
+TARGET_UPDATE = 10
 
 class DQN(nn.Module):
     def __init__(self):
@@ -58,16 +61,22 @@ class DQN(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
 
-
-        linear_input_size = 7056
+        # Number of Linear input connections depends on output of conv2d layers
+        # and therefore the input image size, so compute it.
+        def conv2d_size_out(size, kernel_size = 5, stride = 2):
+            return (size - (kernel_size - 1) - 1) // stride  + 1
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(84)))
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(84)))
+        linear_input_size = convw * convh * 32
         self.head = nn.Linear(linear_input_size, 2) # 448 or 512
-    
+
+    # Called with either one element to determine next action, or a batch
+    # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
-        print(x)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        return F.softmax(x,dim=-1)
+        return self.head(x.view(x.size(0), -1))
 
 policy_net = DQN().to(device)
 target_net = DQN().to(device)
@@ -207,9 +216,8 @@ class DQNMineralAgent(base_agent.BaseAgent):
 
 
         
-        state = torch.tensor(obs.observation.feature_screen[4]).flatten().float()
-        state = torch.flatten(state)
-        state = state.float()
+        #state = torch.tensor(obs.observation.feature_screen[4]).flatten().float()
+        state = torch.tensor(obs.observation.feature_screen[4])
         action = select_action(state) 
 
         if not obs.last():

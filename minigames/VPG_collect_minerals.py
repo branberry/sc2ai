@@ -10,7 +10,7 @@ from pysc2.lib import actions, features,units
 
 import random
 import math
-
+import pandas as pd
 import numpy as np
 
 from torchvision.transforms import transforms
@@ -65,12 +65,19 @@ GAMMA = 0.5
 
 
 class VPG(nn.Module):
+<<<<<<< HEAD
     def __init__(self, gamma=0.5):
+=======
+    def __init__(self,  mineral_count=20, gamma=0.99):
+>>>>>>> 34adee314d67eb83e2b8478341276687b8c5c47f
         super(VPG, self).__init__()
 
         self.gamma = gamma
         self.state = []
         self.actions = []
+        self.mineral_count = mineral_count
+        self.output_results = pd.DataFrame(columns=["episode","return"])
+
 
         self.conv1 = nn.Conv2d(3,16,6)
         self.bn1 = nn.BatchNorm2d(16)
@@ -78,7 +85,7 @@ class VPG(nn.Module):
         self.bn2 = nn.BatchNorm2d(8)
         self.conv3 = nn.Conv2d(8,4,6)
         self.bn3 = nn.BatchNorm2d(4)
-        self.head = nn.Linear(19044, 21) 
+        self.head = nn.Linear(19044, self.mineral_count + 1) 
         self.dropout = nn.Dropout(p=.50)
         
         """
@@ -121,7 +128,7 @@ class VPG(nn.Module):
         
 
 # Instantiating the neural network that will serve as the policy gradient 
-policy = VPG()
+policy = VPG(20)
 
 policy.cuda()
 
@@ -163,17 +170,20 @@ def finish_episode():
     rewards = torch.tensor(rewards)
     rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
     print("\n\n\nRETURN:" + str(R))
+
     for log_prob, reward in zip(policy.log_probs, rewards):
 
         policy_loss.append(-log_prob*reward)
     optimizer.zero_grad()
     policy_loss = torch.cat(policy_loss).sum()
 
+
     print(policy_loss)
     policy_loss.backward()
     optimizer.step()
     del policy.rewards[:]
     del policy.log_probs[:]
+    return R
     
 
 def coordinates(mask):
@@ -197,7 +207,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         self.actions = []
         self.start_data = []
         self.steps = 0
-
+        self.dataframe = pd.DataFrame(columns=['episode', 'return'])
 
     def get_units_by_type(self, obs, unit_type):
         return [unit for unit in obs.observation.feature_units
@@ -226,7 +236,7 @@ class SmartMineralAgent(base_agent.BaseAgent):
         for coord in coordinates:
             res.append(coord[1])
 
-        while len(res) < 21:
+        while len(res) < policy.mineral_count + 1:
             res.append([999, 999])
         
         return res
@@ -260,7 +270,15 @@ class SmartMineralAgent(base_agent.BaseAgent):
         # obs.last() returns a boolean if the frame is the last in an episode or not
         if obs.last():
             #self.steps = 0
-            finish_episode()
+            R = finish_episode()
+            
+            self.dataframe = self.dataframe.append({'episode' : self.episode_count, 'return' : R}, ignore_index=True)
+
+            print(self.dataframe)
+
+            if self.episode_count % 500 == 0:
+                file_name = "custom_minerals_random.csv"
+                self.dataframe.to_csv(file_name,encoding="utf-8",index=False)
             print("\n\n\nEpisode " + str(self.episode_count) + " completed\n\n\n")
 
         input_data = torch.tensor([[obs.observation.feature_screen[6],obs.observation.feature_screen[4],obs.observation.feature_screen[8]]]).float()
@@ -285,9 +303,9 @@ class SmartMineralAgent(base_agent.BaseAgent):
             # (200 - 0) // 100 = 2 (integer division gives us nice whole numbers)
             # The self.step_minerals array contains the previous minerals from all previous steps
             # and the minerals variable contains the current mineral count for the agent 
-            self.reward = 0
+            self.reward = 10
         else:
-            self.reward = -1
+            self.reward = -0.1
 
 
         policy.rewards.append(self.reward)
