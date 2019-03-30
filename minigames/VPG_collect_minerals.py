@@ -65,11 +65,7 @@ GAMMA = 0.5
 
 
 class VPG(nn.Module):
-<<<<<<< HEAD
-    def __init__(self, gamma=0.5):
-=======
     def __init__(self,  mineral_count=20, gamma=0.99):
->>>>>>> 34adee314d67eb83e2b8478341276687b8c5c47f
         super(VPG, self).__init__()
 
         self.gamma = gamma
